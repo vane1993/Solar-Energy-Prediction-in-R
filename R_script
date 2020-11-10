@@ -1,0 +1,164 @@
+The dataset includes measurements from 98 solar energy stations in the period of 1994 - 2007. The dataset has a date column to indicate the date of the measurement made. 
+A column for each station and a column for each Principal Component (PC) (357 in total). 
+
+These are the dimensions of the dataset.
+```{r dim, echo=FALSE, eval=TRUE, include=TRUE}
+dim(data)
+```
+
+These are headers of columns 1 to 8 of the dataset:
+```{r head, echo=FALSE, eval=TRUE, include=TRUE}
+head_data <- head(data[,1:8])
+
+head_data %>%
+  kable() %>%
+  kable_styling()
+
+```
+
+
+The original dataset has been split into two seperate dataset for the purpose of correlation analysis and to be able to analyse the sets seperately if needed. The two sets are:
+
+1. Stations, containing all stations:
+
+```{r stations, echo=TRUE, eval=FALSE, include=TRUE}
+stations <- df[1:5113,2:99]
+```
+
+
+2. Principle Components (PC's), containing all Principle Components:
+
+```{r comp, echo=TRUE, eval=FALSE, include=TRUE}
+pcs <- df[,100:456]
+```
+
+
+## 2. Statistics
+
+####2.1 Summary Statistics
+
+Below you find a table with the summary statistics for the first 20 stations of dataset stations:
+
+```{r summary stats stations, echo= FALSE, eval=TRUE, include=FALSE}
+
+sum_stats <- do.call(data.frame, 
+           list(Mean = apply(stations[,1:20], 2, mean),
+                SD = apply(stations[,1:20], 2, sd),
+                Median = apply(stations[,1:20], 2, median),
+                Min. = apply(stations[,1:20], 2, min),
+                Max. = apply(stations[,1:20], 2, max),
+                n = apply(stations[,1:20], 2, length)))
+sum_stats
+```
+
+```{r kable stations, echo= FALSE, eval=TRUE, include=TRUE}
+
+sum_stats %>%
+  kable() %>%
+  kable_styling()
+```
+
+
+Below you find a table with the summary statistics for the first 20 PC's of dataset stations:
+
+
+```{r summary stats pcs, echo= FALSE, eval=TRUE, include=FALSE}
+
+sum_stats_2 <- do.call(data.frame, 
+           list(Mean = apply(pcs[,1:20], 2, mean),
+                SD = apply(pcs[,1:20], 2, sd),
+                Median = apply(pcs[,1:20], 2, median),
+                Min. = apply(pcs[,1:20], 2, min),
+                Max. = apply(pcs[,1:20], 2, max),
+                n = apply(pcs[,1:20], 2, length)))
+sum_stats_2
+```
+
+
+```{r kable pcs, echo= FALSE, eval=TRUE, include=TRUE}
+
+sum_stats_2 %>%
+  kable() %>%
+  kable_styling()
+```
+
+
+
+####2.1 EDA Visuallizations
+
+Below you can find sample boxplots for 8 random stations:
+  *1 = ACME
+  *2 = ARNE
+  *3 = BIXB
+  *4 = ADAX
+  *5 = ALTU
+  *6 = BEAV
+  *7 = BESS
+  *8 = BLAC
+
+```{r boxlplot, echo=FALSE, eval=TRUE, include=TRUE}
+boxplot(data$ACME,data$ARNE, data$BIXB, data$ADAX, data$ALTU,data$BEAV,data$BESS,data$BLAC,col = 'Orange', main = "Sample Boxplots", xlab="Stations", ylab="J m-2", names = TRUE)
+```
+
+
+####2.3 Sample Histogram
+
+Here sample histograms are presented to show the distribution of sample stations and sample PC's.
+
+```{r histogram, echo=FALSE, eval=TRUE, include=TRUE}
+for (col in 2:5) {
+  hist(stations[,col], col = 'Orange', main = "Sample Histograms: Stations", xlab = "J m-2", ylab = "Frequency")
+}
+
+for (col in 2:5) {
+  hist(pcs[,col], col = 'Orange', main = "Sample Histograms: PC's", xlab = "PC's", ylab = "Frequency")
+}
+```
+
+####2.2 Map: Station locations
+
+Below you can find an interactive map with all locations of the stations from the dataset. Use the cursor to see the names/labels of each station.
+
+```{r map, echo=FALSE, include=TRUE, eval=TRUE}
+leaflet(data = location[1:98,]) %>% addTiles() %>%
+  addMarkers(~elon, ~nlat, label = ~as.character(colnames(stations)))
+```
+
+####2.3 Timeline
+
+Below you find a line graph representing the timeline of J m-2 measured by station ACME over the years.
+
+```{r timeline, echo=FALSE, eval=TRUE, include=TRUE}
+
+plot(strptime(df$Date, "%Y%m%d"), df[,2], type = 'l', col = 'Orange', xlab = 'Date', ylab = 'J m-2', main = "ACME")
+
+```
+
+
+##3. Correlations
+
+Visualization of correlations between sample stations.
+
+```{r cor, echo=FALSE, eval=TRUE, include=TRUE}
+
+corrplot(cor(stations[,1:10]), method = 'square')
+
+```
+
+
+####3.1 Correlations between stations
+
+```{r cor2, echo=FALSE, eval=TRUE, include=TRUE}
+pairs(cor(stations[,1:8]))
+```
+
+####3.1 Correlations between PC's
+
+Scatterplot to show the correlation between PC1 against all PC's.
+
+```{r scatter, echo=FALSE, eval=TRUE, include=TRUE}
+pc1corr <- cor(pcs, pcs$PC1)
+remove <- c(1)
+a_removed <- setdiff(pc1corr, remove)
+plot(a_removed, main = 'PC1 Against PCS', col = 'Orange', fg = 'black', xlab = "PC01", ylab = "PCS")
+```
