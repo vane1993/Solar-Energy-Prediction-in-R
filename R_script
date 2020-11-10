@@ -1,0 +1,666 @@
+install.packages("data.table")
+install.packages('ggplot2')
+install.packages("outliers")
+install.packages("corrplot")
+install.packages("leaflet")
+install.packages("xlsx")
+install.packages('caret')
+install.packages('DT')
+install.packages("rworldmap")
+install.packages("tidyr")
+library(tidyr)
+library(rworldmap)
+library(DT)
+library(caret)
+library(xlsx)
+library(corrplot)
+library(outliers)
+library(ggplot2)
+library(data.table)
+library(leaflet)
+
+
+
+df <- as.data.frame(data)
+stations <- df[1:5113,2:99]
+stations
+pcs <- df[,100:456]
+pcs
+
+#Data with no missing values without date
+new_data <- df[1:5113,2:456]
+dim(new_data)
+View(location)
+
+
+##################### 2. Structure & Statistics #####################
+#Structure of data
+View(data)
+dim(data)
+cat('This dataset', dim(data)[1], 'rows and', dim(data)[2], 'columns.')
+head(data)
+str(data)
+sapply(data, summary)
+
+#Sample Boxplot
+boxplot(data$ACME,data$ARNE, data$BIXB, data$ADAX, data$ALTU,data$BEAV,data$BESS,data$BLAC,col = 'blue')
+
+#Sample Stats for Specific Columns
+boxplot.stats(data$PC10)
+boxplot.stats(data$ACME)
+
+##### 2.1 Outliers #####
+
+#Detect outliers for specific stations
+boxplot.stats(data$PC10)$out
+boxplot.stats(data$ACME)$out
+
+##### 2.2 Histograms #####
+
+#Sample Histogram For Stations
+hist(data$ACME, col = 'blue'); 
+hist(data$ADAX, col = 'brown');
+
+#Histogram using ggplot
+stations_plot <- ggplot(gather(stations[,2:10]), aes(value)) + 
+  geom_histogram(bins = 10) + 
+  facet_wrap(~key, scales = 'free_x')
+stations_plot
+
+#Histogram for each columns
+for (col in 2:ncol(stations)) {
+  hist(stations[,col])
+}
+
+for (col in 2:ncol(pcs)) {
+  hist(pcs[,col])
+}
+
+##### 2.3 Missing Values #####
+
+#Missing data in columns
+colSums(sapply(data, is.na))
+cat('The PC columns have', colSums(sapply(pcs, is.na)), 'missing values')
+cat('The Stations columns have', colSums(sapply(stations, is.na)), 'missing values')
+
+#Percentage of Missing Data
+Missing_Percentage <- (sum(is.na(data))*100) / (nrow(data)*ncol(data))
+cat('Percentage of Missing data is', Missing_Percentage)
+
+Missing_data_stations <- (sum(is.na(stations))*100) / (nrow(stations)*ncol(stations))
+cat('Percentage of Missing data in Stations is', Missing_data_stations)
+
+Missing_data_pcs <- (sum(is.na(pcs))*100) / (nrow(pcs)*ncol(pcs))
+cat('Percentage of Missing data in PCS is', Missing_data_pcs)
+
+##### 2.4 Unique Values #####
+
+#Determine Unique rows
+cat("The number of duplicated rows are", nrow(data) - nrow(unique(data)))
+
+#Unique Values
+sapply(data,function(x){length(unique(x))})
+
+#MEAN OF PCs 
+sapply(new_data[,99:455], mean)
+#Mean of Stations
+sapply(new_data[,1:98], mean)
+
+#Plot against date
+View(df)
+data$Date <- strptime(data$Date, "%Y%m%d")
+plot(strptime(df$Date, "%Y%m%d"), df[,100], type = 'l', col = 'brown', xlab = 'Date', ylab = 'PC01')
+plot(strptime(df$Date, "%Y%m%d"), df[,2], type = 'l', col = 'brown', xlab = 'Date', ylab = 'ACME')
+
+#### 2.5 Location Map: Stations ####
+newmap <- getMap(resolution = "low")
+plot(newmap, xlim = c(-100, -90), ylim = c(25, 45), asp = 1)
+points(location$elon, location$nlat, col = "red", cex = .6)
+install.packages("ggmap")
+library(ggmap)
+
+# Show the location of Stations on the Map
+leaflet(data = location[1:98,]) %>% addTiles() %>%
+  addMarkers(~elon, ~nlat)
+
+
+##################### 3. Correlations #####################
+cor.test(stations$ACME, pcs$PC1[1:5113])
+cor.test(stations$ADAX, pcs$PC1[1:5113])
+
+#Correlations between all variables
+cor <- cor(new_data)
+cor <- as.data.frame(as.table(cor))
+cor
+
+#Correlation Plot between Stations
+corrplot(cor(stations), method = 'square')
+pairs(cor(stations[,1:8]))
+
+#Correlation between a station and all PCS
+#Station1
+station1cor <- cor(new_data[,1],new_data[,99:455])
+boxplot.stats(station1cor)
+hist(station1cor, col = 'brown')
+
+#Station2
+station2cor <- cor(new_data[,2],new_data[,99:455])
+boxplot.stats(station1cor)
+hist(station2cor, col = 'brown')
+
+
+#Correlation between any PC and all PCs
+for (column in pcs){
+  correlation <- function(column){
+    apply(pcs, 2, function(col)cor(col, column))
+  }
+  return(correlation)
+}
+#Test Correlations Function AND plot
+pc1corr <- correlation(pcs$PC1)
+remove <- c(1)
+a_removed <- setdiff(pc1corr, remove)
+#Plot correlation of PC1 against all PCS
+plot(a_removed, main = 'PC1 Against PCS', col = 'brown', fg = 'black', xlab = "PC01", ylab = "PCS")
+
+#Corrplot Heatmap
+corrplot(cor(pcs[,1:20]), method = 'circle')
+corrplot(cor(pcs[,21:40]), method = 'square')
+
+corrplot(cor(stations[,2:10]), method = 'circle')
+corrplot(cor(stations[,11:30]), method = 'square')
+corrplot(cor(stations[,31:50]), method = 'pie')
+help(cor)
+
+##################### 5. Scaling & Dimensionallity Reduction #####################
+
+#### 5.1 Scaling ####
+### scale the function with scale()
+scal_pcs <- scale(pcs, center = TRUE, scale = TRUE);
+scal_pcs;
+scal_pcs_df <- as.data.frame(scal_pcs)
+## explore the variance of the PCs
+nzv <-nearZeroVar(pcs, saveMetrics = TRUE);
+print(paste('Range:', range(nzv$percentUnique)))
+head(nzv)
+
+# how many have no variation at all
+print(length(nzv[nzv$zeroVar==T,]))
+# how many have less than 0.1 percent variance
+dim(nzv[nzv$percentUnique > 0.1,])
+
+### compute the mean of all the columns that should be 0.
+mean(scal_pcs[,1:357])   #-7.873e-20 total todas las columnas
+
+apply(scal_pcs, 2, mean)   #pc1 = -2.112e-17 #PC357= -2.041552e-17 
+
+# compute the stad.dev of all the columns that should be 1. 
+apply(scal_pcs, 2, sd)  # we get the standar deviation = 1 for each column
+sd(scal_pcs[,1:357])
+
+
+#### 5.1 Dimensionallity Reduction ####
+
+select_important<-function(dat, n_vars, y){
+  varimp <- filterVarImp(x = dat, y=y, nonpara=TRUE);
+  varimp <- data.table(variable=rownames(varimp),imp=varimp[, 1]);
+  varimp <- varimp[order(-imp)];
+  selected <- varimp$variable[1:n_vars];
+  return(selected);
+}
+
+
+dim(stations)
+dim(scal_pcs_df)
+cut_scal_pcs_df <- scal_pcs_df[1:5113,]
+dim(cut_scal_pcs_df)
+
+setDT(stations)
+setDT(cut_scal_pcs_df)
+
+#Identify important variables from stations that have high correlations with other stations
+a <- select_important(dat = cut_scal_pcs_df[,], n_vars = 20, y = stations$STIL)
+b <- select_important(dat = cut_scal_pcs_df[,], n_vars = 20, y = stations$MARE)
+c <- select_important(dat = cut_scal_pcs_df[,], n_vars = 20, y = stations$PERK)
+d <- select_important(dat = cut_scal_pcs_df[,], n_vars = 20, y = stations$BYAR)
+e <- select_important(dat = cut_scal_pcs_df[,], n_vars = 20, y = stations$SULP)
+
+#Determine the common significant variables among the chosen sample
+common_significant_variables <- Reduce(intersect, list(a,b,c,d,e))
+common_significant_variables
+
+significant_variables_df <- cut_scal_pcs_df[, c("PC1" , "PC2" , "PC7" , "PC5" , "PC6"  ,"PC4" , "PC24" ,"PC32", "PC29", "PC26", "PC51", "PC33" ,"PC19" ,"PC79" ,"PC42", "PC8" )]
+significant_variables_df
+
+stations_significant <- cbind(stations,significant_variables_df)
+stations_significant_wdate <- cbind(data[1:5113,1], stations_significant)
+stations_significant_wdate
+View(stations_significant_wdate)
+
+
+
+#### 5.3 Station STIL as Target ####
+#Final_Dataset
+grep("STIL", colnames(df))
+final_dataset <- cbind(df[,83],scal_pcs_df)
+dim(final_dataset)
+View(final_dataset)
+head(final_dataset)
+
+#Scale Date
+date_scal <- data[,1]
+
+date_scal <- sapply(date_scal[,], as.factor)
+date_scal <- sapply(date_scal[,], as.numeric)
+class(date_scal)
+dim(date_scal)
+date_scal <- scale(date_scal, center = TRUE, scale = TRUE);
+head(date_scal)
+View(date_scal)
+dim(date_scal)
+
+#### 5.4 Final Dataset ####
+dim(date_scal)
+dim(final_dataset)
+
+final_dataset <- cbind(final_dataset, date_scal)
+final_dataset_nomissingvalues <- final_dataset[1:5113,]
+head(final_dataset_nomissingvalues)
+colnames(final_dataset_nomissingvalues)[colnames(final_dataset_nomissingvalues)=="df[, 83]"] <- "STIL"
+
+#Check Nulls in Dataset
+colSums(sapply(final_dataset_nomissingvalues, is.na))
+tail(final_dataset_nomissingvalues)
+
+
+#####################  6. Creating Traing & Test Datasets ##################### 
+
+# setting seed to reproduce results of random sampling
+
+set.seed(100); 
+# row indices for training data (70%)
+train_index <- sample(1:nrow(final_dataset_nomissingvalues), 0.7*nrow(final_dataset_nomissingvalues));  
+
+####3 row indices for validation data (15%)
+val_index <- sample(setdiff(1:nrow(final_dataset_nomissingvalues), train_index), 0.15*nrow(final_dataset_nomissingvalues));  
+
+# row indices for test data (15%)
+test_index <- setdiff(1:nrow(final_dataset_nomissingvalues), c(train_index, val_index));
+
+# split data
+train <- final_dataset_nomissingvalues[train_index,]; 
+val <- final_dataset_nomissingvalues[val_index,]; 
+test  <- final_dataset_nomissingvalues[test_index,];
+
+dim(final_dataset_nomissingvalues);
+dim(train);
+dim(val);
+dim(test)
+
+#####################  7. Modelling ##################### 
+
+# build linear regression model to predict STIL using all the other variables as predictors
+model_lall <- lm(STIL ~ ., data = train);
+
+# Check model info
+print(model_lall); 
+summary(model_lall);
+
+# Get model predictions
+predictions_train <- predict(model_lall, newdata = train);
+predictions_test <- predict(model_lall, newdata = test);
+
+# Get errors
+errors_train <- predictions_train - train$STIL;
+errors_test <- predictions_test - test$STIL;
+
+# Compute Metrics
+mse_train <- round(mean(errors_train^2), 2);
+mae_train <- round(mean(abs(errors_train)), 2);
+
+mse_test <- round(mean(errors_test^2), 2);
+mae_test <- round(mean(abs(errors_test)), 2);
+
+# Build comparison table
+comp <- data.table(model = c("lm_allvar"), 
+                         mse_train = mse_train, mae_train = mae_train,
+                         mse_test = mse_test, mae_test = mae_test);
+comp;
+
+####  7.1 Important Variables ####
+variables50 <- select_important(dat = final_dataset_nomissingvalues[,2:ncol(final_dataset_nomissingvalues)], n_vars = 50, y = final_dataset_nomissingvalues$STIL)
+variables100 <- select_important(dat = final_dataset_nomissingvalues[,2:ncol(final_dataset_nomissingvalues)], n_vars = 100, y = final_dataset_nomissingvalues$STIL)
+variables200 <- select_important(dat = final_dataset_nomissingvalues[,2:ncol(final_dataset_nomissingvalues)], n_vars = 200, y = final_dataset_nomissingvalues$STIL)
+
+variables50 <- final_dataset_nomissingvalues[, c("STIL",variables50)]
+variables50
+variables100 <- final_dataset_nomissingvalues[, c("STIL",variables100)]
+variables100
+variables200 <- final_dataset_nomissingvalues[, c("STIL",variables200)]
+variables200
+
+
+#####################  7.2 Use of Different Number of Variables ##################### 
+
+# setting seed to reproduce results of random sampling
+set.seed(100); 
+# row indices for training data (70%)
+train_index <- sample(1:nrow(variables50), 0.7*nrow(variables50));  
+
+####3 row indices for validation data (15%)
+val_index <- sample(setdiff(1:nrow(variables50), train_index), 0.15*nrow(variables50));  
+
+# row indices for test data (15%)
+test_index <- setdiff(1:nrow(variables50), c(train_index, val_index));
+
+# split data
+train <- variables50[train_index,]; 
+val <- variables50[val_index,]; 
+test  <- variables50[test_index,];
+
+dim(variables50);
+dim(train);
+dim(val);
+dim(test)
+
+# build linear regression model to predict STIL using all the other variables as predictors
+model_lall <- lm(STIL ~ ., data = train);
+
+
+# Check model info
+print(model_lall); 
+summary(model_lall);
+
+# Get model predictions
+predictions_train <- predict(model_lall, newdata = train);
+predictions_test <- predict(model_lall, newdata = test);
+
+# Get errors
+errors_train <- predictions_train - train$STIL;
+errors_test <- predictions_test - test$STIL;
+
+# Compute Metrics
+mse_train <- round(mean(errors_train^2), 2);
+mae_train <- round(mean(abs(errors_train)), 2);
+
+mse_test <- round(mean(errors_test^2), 2);
+mae_test <- round(mean(abs(errors_test)), 2);
+
+# Build comparison table
+comp <- rbind(comp,
+              data.table(model = c("lm_var50"), 
+                         mse_train = mse_train, mae_train = mae_train,
+                         mse_test = mse_test, mae_test = mae_test));
+comp;
+
+#####################  7.3 Modelling with 200 Variables ##################### 
+
+# setting seed to reproduce results of random sampling
+set.seed(100); 
+# row indices for training data (70%)
+train_index <- sample(1:nrow(variables200), 0.7*nrow(variables200));  
+
+####3 row indices for validation data (15%)
+val_index <- sample(setdiff(1:nrow(variables200), train_index), 0.15*nrow(variables200));  
+
+# row indices for test data (15%)
+test_index <- setdiff(1:nrow(variables200), c(train_index, val_index));
+
+# split data
+train <- variables200[train_index,]; 
+val <- variables200[val_index,]; 
+test  <- variables200[test_index,];
+
+dim(variables200);
+dim(train);
+dim(val);
+dim(test)
+
+# build linear regression model to predict STIL using all the other variables as predictors
+model_lall <- lm(STIL ~ ., data = train);
+
+# Check model info
+print(model_lall); 
+summary(model_lall);
+
+# Get model predictions
+predictions_train <- predict(model_lall, newdata = train);
+predictions_test <- predict(model_lall, newdata = test);
+
+# Get errors
+errors_train <- predictions_train - train$STIL;
+errors_test <- predictions_test - test$STIL;
+
+# Compute Metrics
+mse_train <- round(mean(errors_train^2), 2);
+mae_train <- round(mean(abs(errors_train)), 2);
+
+mse_test <- round(mean(errors_test^2), 2);
+mae_test <- round(mean(abs(errors_test)), 2);
+
+# Build comparison table
+comp <- rbind(comp,
+              data.table(model = c("lm_var200"), 
+                         mse_train = mse_train, mae_train = mae_train,
+                         mse_test = mse_test, mae_test = mae_test));
+comp;
+
+
+#####################  8. SVM ##################### 
+# setting seed to reproduce results of random sampling
+
+set.seed(100); 
+# row indices for training data (70%)
+train_index <- sample(1:nrow(final_dataset_nomissingvalues), 0.7*nrow(final_dataset_nomissingvalues));  
+
+####3 row indices for validation data (15%)
+val_index <- sample(setdiff(1:nrow(final_dataset_nomissingvalues), train_index), 0.15*nrow(final_dataset_nomissingvalues));  
+
+# row indices for test data (15%)
+test_index <- setdiff(1:nrow(final_dataset_nomissingvalues), c(train_index, val_index));
+
+# split data
+train <- final_dataset_nomissingvalues[train_index,]; 
+val <- final_dataset_nomissingvalues[val_index,]; 
+test  <- final_dataset_nomissingvalues[test_index,];
+
+dim(final_dataset_nomissingvalues);
+dim(train);
+dim(val);
+dim(test)
+
+
+### train standard SVM model
+model <- svm(STIL ~ ., data = train, kernel="radial")  
+
+# Check model info
+print(model);
+
+# Get model predictions
+predictions_train <- predict(model, newdata = train);
+# (Accuracy-'explainability' tradeoff)
+predictions_test <- predict(model, newdata = test);
+
+# Get errors
+errors_train <- predictions_train - train$STIL;
+errors_test <- predictions_test - test$STIL;
+
+# Compute Metrics
+mse_train <- round(mean(errors_train^2), 2);
+mae_train <- round(mean(abs(errors_train)), 2);
+
+mse_test <- round(mean(errors_test^2), 2);
+mae_test <- round(mean(abs(errors_test)), 2);
+
+# Build comparison table
+comp <- rbind(comp,
+              data.table(model = c("standard svm"), 
+                         mse_train = mse_train, mae_train = mae_train,
+                         mse_test = mse_test, mae_test = mae_test));
+comp;
+
+
+#####################  8.1 SVM with 200 Variables ##################### 
+
+# setting seed to reproduce results of random sampling
+set.seed(100); 
+# row indices for training data (70%)
+train_index <- sample(1:nrow(variables200), 0.7*nrow(variables200));  
+
+####3 row indices for validation data (15%)
+val_index <- sample(setdiff(1:nrow(variables200), train_index), 0.15*nrow(variables200));  
+
+# row indices for test data (15%)
+test_index <- setdiff(1:nrow(variables200), c(train_index, val_index));
+
+# split data
+train <- variables200[train_index,]; 
+val <- variables200[val_index,]; 
+test  <- variables200[test_index,];
+
+dim(variables200);
+dim(train);
+dim(val);
+dim(test)
+### train standard SVM model
+model <- svm(STIL ~ ., data = train, kernel="radial")  
+
+# Check model info
+print(model);
+
+# Get model predictions
+predictions_train <- predict(model, newdata = train); # There is no formula here! Less explainability
+# (Accuracy-'explainability' tradeoff)
+predictions_test <- predict(model, newdata = test);
+
+# Get errors
+errors_train <- predictions_train - train$STIL;
+errors_test <- predictions_test - test$STIL;
+
+# Compute Metrics
+mse_train <- round(mean(errors_train^2), 2);
+mae_train <- round(mean(abs(errors_train)), 2);
+
+mse_test <- round(mean(errors_test^2), 2);
+mae_test <- round(mean(abs(errors_test)), 2);
+
+# Build comparison table
+comp <- rbind(comp,
+              data.table(model = c("standard svm 200"), 
+                         mse_train = mse_train, mae_train = mae_train,
+                         mse_test = mse_test, mae_test = mae_test));
+comp; 
+
+#####################  9. Optimize the Model ##################### 
+
+set.seed(100); 
+# row indices for training data (70%)
+train_index <- sample(1:nrow(final_dataset_nomissingvalues), 0.7*nrow(final_dataset_nomissingvalues));  
+
+####3 row indices for validation data (15%)
+val_index <- sample(setdiff(1:nrow(final_dataset_nomissingvalues), train_index), 0.15*nrow(final_dataset_nomissingvalues));  
+
+# row indices for test data (15%)
+test_index <- setdiff(1:nrow(final_dataset_nomissingvalues), c(train_index, val_index));
+
+# split data
+train <- final_dataset_nomissingvalues[train_index,]; 
+val <- final_dataset_nomissingvalues[val_index,]; 
+test  <- final_dataset_nomissingvalues[test_index,];
+
+dim(final_dataset_nomissingvalues);
+dim(train);
+dim(val);
+dim(test)
+
+### Check svm hyperparameters
+help(svm);
+
+### Define grid
+c_values <- 10^seq(from = -3, to = 3, by = 1);
+eps_values <- 10^seq(from = -3, to = 0, by = 1);
+gamma_values <- 10^seq(from = -3, to = 3, by = 1);
+
+### Compute grid search
+grid_results <- data.table();
+
+for (c in c_values){
+  for (eps in eps_values){
+    for (gamma in gamma_values){
+      
+      print(sprintf("Start of c = %s - eps = %s - gamma = %s", c, eps, gamma));
+      
+      # train SVM model with a particular set of hyperparamets
+      model <- svm(STIL ~ ., data = train, kernel="radial",
+                   cost = c, epsilon = eps, gamma = gamma);
+      
+      # Get model predictions
+      predictions_train <- predict(model, newdata = train);
+      predictions_val <- predict(model, newdata = val);
+      
+      # Get errors
+      errors_train <- predictions_train - train$STIL;
+      errors_val <- predictions_val - val$STIL;
+      
+      # Compute Metrics
+      mse_train <- round(mean(errors_train^2), 2);
+      mae_train <- round(mean(abs(errors_train)), 2);
+      
+      mse_val <- round(mean(errors_val^2), 2);
+      mae_val <- round(mean(abs(errors_val)), 2);
+      
+      # Build comparison table
+      grid_results <- rbind(grid_results,
+                            data.table(c = c, eps = eps, gamma = gamma, 
+                                       mse_train = mse_train, mae_train = mae_train,
+                                       mse_val = mse_val, mae_val = mae_val));
+    }
+  }
+}
+
+# Order results by increasing mse and mae
+grid_results <- grid_results[order(mse_val, mae_val)];
+
+# Check results
+View(grid_results);
+grid_results[1];
+grid_results[which.max(mse_train)]; # Underfitting! High bias-low variance (Bias-Variance tradeoff)
+
+# Get optimized hyperparameters
+best <- grid_results[1];
+best;
+
+
+### Train final model
+# train SVM model with best found set of hyperparamets
+model <- svm(STIL ~ ., data = train, kernel="radial",
+             cost = best$c, epsilon = best$eps, gamma = best$gamma);
+
+# Get model predictions
+predictions_train <- predict(model, newdata = train);
+predictions_val <- predict(model, newdata = val);
+predictions_test <- predict(model, newdata = test);
+
+# Get errors
+errors_train <- predictions_train - train$STIL;
+errors_val <- predictions_val - val$STIL;
+errors_test <- predictions_test - test$STIL;
+
+# Compute Metrics
+mse_train <- round(mean(errors_train^2), 2);
+mae_train <- round(mean(abs(errors_train)), 2);
+
+mse_val <- round(mean(errors_val^2), 2);
+mae_val <- round(mean(abs(errors_val)), 2);
+
+mse_test <- round(mean(errors_test^2), 2);
+mae_test <- round(mean(abs(errors_test)), 2);
+
+# Build comparison table
+comp <- rbind(comp,
+              data.table(model = c("optimized_svm"), 
+                         mse_train = mse_train, mae_train = mae_train,
+                         mse_test = mse_test, mae_test = mae_test));
+comp # Best model in terms of error metrics!! More accuracy (Accuracy-'explainability' tradeoff)
+
+
